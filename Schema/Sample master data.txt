@@ -1,55 +1,100 @@
+USE banking_applicaton;
+
+-- =========================
+-- 1. BRANCHES
+-- =========================
 INSERT INTO branches
 (branch_code, branch_name, ifsc_code, address_line, city, state, pincode, manager_name, phone)
 VALUES
 ('BR001', 'Connaught Place Branch', 'BANK0001001', 'Block A, Connaught Place', 'Delhi', 'Delhi', '110001', 'Rakesh Sharma', '9811111111'),
 ('BR002', 'Karol Bagh Branch', 'BANK0001002', 'Ajmal Khan Road', 'Delhi', 'Delhi', '110005', 'Neha Verma', '9822222222');
 
+-- Get real branch ids
+SET @branch1 := (SELECT branch_id FROM branches WHERE branch_code = 'BR001' LIMIT 1);
+SET @branch2 := (SELECT branch_id FROM branches WHERE branch_code = 'BR002' LIMIT 1);
+
+-- =========================
+-- 2. CUSTOMERS
+-- =========================
 INSERT INTO customers
 (full_name, father_name, dob, gender, email, phone, address_line, city, state, pincode)
 VALUES
 ('Amit Kumar', 'Raj Kumar', '1998-06-15', 'Male', 'amit@gmail.com', '9876543210', 'Laxmi Nagar', 'Delhi', 'Delhi', '110092'),
 ('Priya Singh', 'Mohan Singh', '1995-02-10', 'Female', 'priya@gmail.com', '9876543211', 'Rohini', 'Delhi', 'Delhi', '110085');
 
+-- Get real customer ids
+SET @cust1 := (SELECT customer_id FROM customers WHERE phone = '9876543210' LIMIT 1);
+SET @cust2 := (SELECT customer_id FROM customers WHERE phone = '9876543211' LIMIT 1);
+
+-- =========================
+-- 3. ACCOUNT DOCUMENTS
+-- =========================
 INSERT INTO account_documents (customer_id, doc_type, doc_number, verified)
 VALUES
-(1, 'AADHAAR', '123456789012', TRUE),
-(1, 'PAN', 'ABCDE1234F', TRUE),
-(2, 'AADHAAR', '234567890123', TRUE),
-(2, 'PAN', 'PQRSX5678K', TRUE);
+(@cust1, 'AADHAAR', '123456789012', TRUE),
+(@cust1, 'PAN', 'ABCDE1234F', TRUE),
+(@cust2, 'AADHAAR', '234567890123', TRUE),
+(@cust2, 'PAN', 'PQRSX5678K', TRUE);
 
+-- =========================
+-- 4. ACCOUNTS
+-- =========================
 INSERT INTO accounts
 (customer_id, branch_id, account_no, account_type, balance, min_balance, status)
 VALUES
-(1, 1, 1000000001, 'SAVINGS', 15000.00, 500.00, 'ACTIVE'),
-(2, 2, 1000000002, 'SAVINGS', 22000.00, 500.00, 'ACTIVE');
+(@cust1, @branch1, 1000000001, 'SAVINGS', 15000.00, 500.00, 'ACTIVE'),
+(@cust2, @branch2, 1000000002, 'SAVINGS', 22000.00, 500.00, 'ACTIVE');
 
+-- Get real account ids
+SET @acc1 := (SELECT account_id FROM accounts WHERE account_no = 1000000001 LIMIT 1);
+SET @acc2 := (SELECT account_id FROM accounts WHERE account_no = 1000000002 LIMIT 1);
+
+-- =========================
+-- 5. ATM CARDS
+-- =========================
 INSERT INTO atm_cards
 (account_id, card_number, card_type, expiry_month, expiry_year, pin_hash, status)
 VALUES
-(1, '1234123412341234', 'DEBIT', 12, 2030, 'hashed_pin_1234', 'ACTIVE'),
-(2, '5678567856785678', 'DEBIT', 11, 2030, 'hashed_pin_5678', 'ACTIVE');
+(@acc1, '1234123412341234', 'DEBIT', 12, 2030, 'hashed_pin_1234', 'ACTIVE'),
+(@acc2, '5678567856785678', 'DEBIT', 11, 2030, 'hashed_pin_5678', 'ACTIVE');
 
+-- =========================
+-- 6. CHECKBOOKS
+-- =========================
 INSERT INTO checkbooks
 (account_id, request_date, issue_date, start_cheque_no, end_cheque_no, leaves_count, status)
 VALUES
-(1, NOW(), NOW(), 500001, 500025, 25, 'ISSUED');
+(@acc1, NOW(), NOW(), 500001, 500025, 25, 'ISSUED');
 
+-- =========================
+-- 7. ATM MACHINES
+-- =========================
 INSERT INTO atm_machines
 (atm_code, branch_id, location_name, address_line, city, state, status, installed_at)
 VALUES
-('ATM001', 1, 'CP Main ATM', 'Connaught Place Gate 1', 'Delhi', 'Delhi', 'ACTIVE', NOW()),
-('ATM002', 2, 'Karol Bagh ATM', 'Near Metro Gate', 'Delhi', 'Delhi', 'ACTIVE', NOW());
+('ATM001', @branch1, 'CP Main ATM', 'Connaught Place Gate 1', 'Delhi', 'Delhi', 'ACTIVE', NOW()),
+('ATM002', @branch2, 'Karol Bagh ATM', 'Near Metro Gate', 'Delhi', 'Delhi', 'ACTIVE', NOW());
 
+-- Get real ATM ids
+SET @atm1 := (SELECT atm_id FROM atm_machines WHERE atm_code = 'ATM001' LIMIT 1);
+SET @atm2 := (SELECT atm_id FROM atm_machines WHERE atm_code = 'ATM002' LIMIT 1);
+
+-- =========================
+-- 8. ATM CASH BINS
+-- =========================
 INSERT INTO atm_cash_bins (atm_id, denomination, notes_count)
 VALUES
-(1, 100, 500),
-(1, 200, 400),
-(1, 500, 300),
-(2, 100, 300),
-(2, 500, 200);
+(@atm1, 100, 500),
+(@atm1, 200, 400),
+(@atm1, 500, 300),
+(@atm2, 100, 300),
+(@atm2, 500, 200);
 
+-- =========================
+-- 9. NET BANKING USERS
+-- =========================
 INSERT INTO net_banking_users
 (account_id, username, password_hash, transaction_password_hash, is_active, is_locked)
 VALUES
-(1, 'amit001', 'hashed_login_pass', 'hashed_txn_pass', TRUE, FALSE),
-(2, 'priya001', 'hashed_login_pass2', 'hashed_txn_pass2', TRUE, FALSE);
+(@acc1, 'amit001', 'hashed_login_pass', 'hashed_txn_pass', TRUE, FALSE),
+(@acc2, 'priya001', 'hashed_login_pass2', 'hashed_txn_pass2', TRUE, FALSE);
