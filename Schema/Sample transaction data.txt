@@ -1,0 +1,8 @@
+INSERT INTO transactions
+(txn_ref, account_id, related_account_id, branch_id, atm_id, channel, txn_type, amount, balance_after, status, remarks, txn_time)
+VALUES
+('TXN10001', 1, NULL, NULL, 1, 'ATM', 'WITHDRAW', 2000.00, 13000.00, 'SUCCESS', 'ATM cash withdrawal', NOW() - INTERVAL 2 DAY),
+('TXN10002', 1, NULL, NULL, 1, 'ATM', 'BALANCE_INQUIRY', 0.00, 13000.00, 'SUCCESS', 'Balance inquiry', NOW() - INTERVAL 1 DAY),
+('TXN10003', 1, 2, NULL, NULL, 'NET_BANKING', 'TRANSFER_DEBIT', 1000.00, 12000.00, 'SUCCESS', 'Transfer to account 2', NOW() - INTERVAL 10 HOUR),
+('TXN10004', 2, 1, NULL, NULL, 'NET_BANKING', 'TRANSFER_CREDIT', 1000.00, 23000.00, 'SUCCESS', 'Transfer from account 1', NOW() - INTERVAL 10 HOUR),
+('TXN10005', 1, NULL, 1, NULL, 'BRANCH', 'DEPOSIT', 5000.00, 17000.00, 'SUCCESS', 'Cash deposit at branch', NOW() - INTERVAL 2 HOUR);

@@ -1,0 +1,280 @@
+CREATE DATABASE IF NOT EXISTS banking_system_v2;
+USE banking_system_v2;
+
+-- =========================
+-- 1. BRANCHES
+-- =========================
+CREATE TABLE branches (
+    branch_id INT PRIMARY KEY AUTO_INCREMENT,
+    branch_code VARCHAR(20) NOT NULL UNIQUE,
+    branch_name VARCHAR(100) NOT NULL,
+    ifsc_code VARCHAR(20) NOT NULL UNIQUE,
+    address_line VARCHAR(255) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    state VARCHAR(100) NOT NULL,
+    pincode VARCHAR(10) NOT NULL,
+    manager_name VARCHAR(100),
+    phone VARCHAR(15),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- =========================
+-- 2. CUSTOMERS
+-- =========================
+CREATE TABLE customers (
+    customer_id INT PRIMARY KEY AUTO_INCREMENT,
+    full_name VARCHAR(100) NOT NULL,
+    father_name VARCHAR(100),
+    dob DATE NOT NULL,
+    gender ENUM('Male','Female','Other') NOT NULL,
+    email VARCHAR(150) UNIQUE,
+    phone VARCHAR(15) NOT NULL UNIQUE,
+    address_line VARCHAR(255) NOT NULL,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    pincode VARCHAR(10),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- =========================
+-- 3. ACCOUNT DOCUMENTS
+-- =========================
+CREATE TABLE account_documents (
+    document_id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT NOT NULL,
+    doc_type ENUM('AADHAAR','PAN') NOT NULL,
+    doc_number VARCHAR(30) NOT NULL UNIQUE,
+    verified BOOLEAN DEFAULT FALSE,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+);
+
+-- =========================
+-- 4. ACCOUNTS
+-- =========================
+CREATE TABLE accounts (
+    account_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT NOT NULL,
+    branch_id INT NOT NULL,
+    account_no BIGINT NOT NULL UNIQUE,
+    account_type ENUM('SAVINGS','CURRENT','SALARY','FIXED_DEPOSIT') NOT NULL DEFAULT 'SAVINGS',
+    balance DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+    min_balance DECIMAL(15,2) NOT NULL DEFAULT 500.00,
+    status ENUM('ACTIVE','INACTIVE','BLOCKED','CLOSED') DEFAULT 'ACTIVE',
+    opened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+    FOREIGN KEY (branch_id) REFERENCES branches(branch_id)
+);
+
+-- =========================
+-- 5. CHECKBOOKS
+-- =========================
+CREATE TABLE checkbooks (
+    checkbook_id INT PRIMARY KEY AUTO_INCREMENT,
+    account_id BIGINT NOT NULL,
+    request_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    issue_date DATETIME NULL,
+    start_cheque_no BIGINT NOT NULL,
+    end_cheque_no BIGINT NOT NULL,
+    leaves_count INT NOT NULL,
+    status ENUM('REQUESTED','ISSUED','USED','CANCELLED') DEFAULT 'REQUESTED',
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id)
+);
+
+-- =========================
+-- 6. ATM CARDS
+-- =========================
+CREATE TABLE atm_cards (
+    card_id INT PRIMARY KEY AUTO_INCREMENT,
+    account_id BIGINT NOT NULL,
+    card_number VARCHAR(16) NOT NULL UNIQUE,
+    card_type ENUM('DEBIT','ATM') DEFAULT 'DEBIT',
+    expiry_month INT NOT NULL,
+    expiry_year INT NOT NULL,
+    pin_hash VARCHAR(255) NULL,
+    daily_withdraw_limit DECIMAL(12,2) DEFAULT 25000.00,
+    status ENUM('ACTIVE','BLOCKED','EXPIRED','HOTLISTED') DEFAULT 'ACTIVE',
+    issued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id)
+);
+
+-- =========================
+-- 7. ATM PIN RESET LOGS
+-- =========================
+CREATE TABLE atm_pin_reset_logs (
+    reset_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    card_id INT NOT NULL,
+    account_id BIGINT NOT NULL,
+    reset_type ENUM('GENERATE_PIN','CHANGE_PIN','FORGOT_PIN') NOT NULL,
+    via_channel ENUM('ATM','BRANCH','NET_BANKING','PHONE_OTP') NOT NULL,
+    phone_verified BOOLEAN DEFAULT FALSE,
+    reset_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    remarks VARCHAR(255),
+    FOREIGN KEY (card_id) REFERENCES atm_cards(card_id),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id)
+);
+
+-- =========================
+-- 8. ATM MACHINES
+-- =========================
+CREATE TABLE atm_machines (
+    atm_id INT PRIMARY KEY AUTO_INCREMENT,
+    atm_code VARCHAR(20) NOT NULL UNIQUE,
+    branch_id INT NOT NULL,
+    location_name VARCHAR(150) NOT NULL,
+    address_line VARCHAR(255),
+    city VARCHAR(100),
+    state VARCHAR(100),
+    status ENUM('ACTIVE','OFFLINE','MAINTENANCE','OUT_OF_CASH') DEFAULT 'ACTIVE',
+    installed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_service_at DATETIME NULL,
+    FOREIGN KEY (branch_id) REFERENCES branches(branch_id)
+);
+
+-- =========================
+-- 9. ATM CASH BINS
+-- =========================
+CREATE TABLE atm_cash_bins (
+    bin_id INT PRIMARY KEY AUTO_INCREMENT,
+    atm_id INT NOT NULL,
+    denomination INT NOT NULL,
+    notes_count INT NOT NULL DEFAULT 0,
+    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (atm_id) REFERENCES atm_machines(atm_id),
+    UNIQUE (atm_id, denomination)
+);
+
+-- =========================
+-- 10. ATM CASH LOAD LOGS
+-- =========================
+CREATE TABLE atm_cash_load_logs (
+    load_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    atm_id INT NOT NULL,
+    loaded_by VARCHAR(100) NOT NULL,
+    denomination INT NOT NULL,
+    notes_added INT NOT NULL,
+    total_amount DECIMAL(15,2) NOT NULL,
+    load_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    remarks VARCHAR(255),
+    FOREIGN KEY (atm_id) REFERENCES atm_machines(atm_id)
+);
+
+-- =========================
+-- 11. NET BANKING USERS
+-- =========================
+CREATE TABLE net_banking_users (
+    nb_user_id INT PRIMARY KEY AUTO_INCREMENT,
+    account_id BIGINT NOT NULL,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    transaction_password_hash VARCHAR(255) NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    is_locked BOOLEAN DEFAULT FALSE,
+    last_login_at DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id)
+);
+
+-- =========================
+-- 12. OTP LOGS
+-- =========================
+CREATE TABLE otp_logs (
+    otp_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    account_id BIGINT NULL,
+    phone VARCHAR(15) NOT NULL,
+    otp_code VARCHAR(10) NOT NULL,
+    purpose ENUM('FORGOT_PIN','FORGOT_PASSWORD','PHONE_VERIFY') NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id)
+);
+
+-- =========================
+-- 13. TRANSACTIONS
+-- =========================
+CREATE TABLE transactions (
+    txn_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    txn_ref VARCHAR(30) NOT NULL UNIQUE,
+    account_id BIGINT NOT NULL,
+    related_account_id BIGINT NULL,
+    branch_id INT NULL,
+    atm_id INT NULL,
+    channel ENUM('BRANCH','ATM','NET_BANKING','MOBILE','SYSTEM') NOT NULL,
+    txn_type ENUM('DEPOSIT','WITHDRAW','TRANSFER_DEBIT','TRANSFER_CREDIT','BALANCE_INQUIRY','MINI_STATEMENT','PIN_CHANGE','CHECKBOOK_REQUEST') NOT NULL,
+    amount DECIMAL(15,2) DEFAULT 0.00,
+    balance_after DECIMAL(15,2) NULL,
+    status ENUM('SUCCESS','FAILED','REVERSED','PENDING') DEFAULT 'SUCCESS',
+    remarks VARCHAR(255),
+    txn_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id),
+    FOREIGN KEY (related_account_id) REFERENCES accounts(account_id),
+    FOREIGN KEY (branch_id) REFERENCES branches(branch_id),
+    FOREIGN KEY (atm_id) REFERENCES atm_machines(atm_id)
+);
+
+-- =========================
+-- 14. LEDGER ENTRIES
+-- =========================
+CREATE TABLE ledger_entries (
+    entry_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    txn_id BIGINT NOT NULL,
+    account_id BIGINT NOT NULL,
+    entry_type ENUM('DEBIT','CREDIT') NOT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+    balance_after DECIMAL(15,2) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (txn_id) REFERENCES transactions(txn_id),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id)
+);
+
+-- =========================
+-- 15. ATM EJ LOGS
+-- =========================
+CREATE TABLE atm_ej_logs (
+    ej_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    atm_id INT NOT NULL,
+    card_number VARCHAR(16),
+    account_no BIGINT,
+    txn_ref VARCHAR(30),
+    ej_type ENUM('WITHDRAW','DEPOSIT','BALANCE_INQUIRY','MINI_STATEMENT','PIN_CHANGE','FAILED','REVERSAL') NOT NULL,
+    amount DECIMAL(15,2) DEFAULT 0.00,
+    ej_status ENUM('SUCCESS','FAILED','PARTIAL','REVERSAL') NOT NULL,
+    ej_message VARCHAR(255),
+    ej_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (atm_id) REFERENCES atm_machines(atm_id)
+);
+
+-- =========================
+-- 16. ATM RECONCILIATION
+-- =========================
+CREATE TABLE atm_reconciliation (
+    recon_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    atm_id INT NOT NULL,
+    txn_ref VARCHAR(30) NOT NULL,
+    ej_matched BOOLEAN DEFAULT FALSE,
+    core_matched BOOLEAN DEFAULT FALSE,
+    cash_matched BOOLEAN DEFAULT FALSE,
+    recon_status ENUM('MATCHED','MISMATCH','PENDING_REVIEW') DEFAULT 'PENDING_REVIEW',
+    recon_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    remarks VARCHAR(255),
+    FOREIGN KEY (atm_id) REFERENCES atm_machines(atm_id)
+);
+
+-- =========================
+-- 17. AUDIT LOGS
+-- =========================
+CREATE TABLE audit_logs (
+    audit_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    actor_type ENUM('CUSTOMER','ADMIN','SYSTEM') NOT NULL,
+    actor_id VARCHAR(50) NOT NULL,
+    action_name VARCHAR(100) NOT NULL,
+    target_table VARCHAR(100),
+    target_id VARCHAR(100),
+    action_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    details TEXT
+);
