@@ -1,0 +1,71 @@
+Mini statement query
+A mini statement is usually the last few transactions for one account, ordered by latest time.
+
+sql
+SELECT
+    txn_ref,
+    txn_type,
+    channel,
+    amount,
+    balance_after,
+    status,
+    txn_time
+FROM transactions
+WHERE account_id = 1
+ORDER BY txn_time DESC
+LIMIT 5;
+ATM cash tracking query
+ATM reconciliation and cash tracking require machine-level cash data plus load logs and ATM journals.
+
+sql
+SELECT
+    a.atm_code,
+    a.location_name,
+    b.denomination,
+    b.notes_count,
+    (b.denomination * b.notes_count) AS total_amount,
+    b.last_updated
+FROM atm_machines a
+JOIN atm_cash_bins b ON a.atm_id = b.atm_id
+ORDER BY a.atm_id, b.denomination;
+Total cash in each ATM
+sql
+SELECT
+    a.atm_code,
+    a.location_name,
+    SUM(b.denomination * b.notes_count) AS cash_available
+FROM atm_machines a
+JOIN atm_cash_bins b ON a.atm_id = b.atm_id
+GROUP BY a.atm_id, a.atm_code, a.location_name;
+Reconciliation tracking query
+ATM reconciliation should compare ATM journal records with core banking transactions and cash records, because ATM control depends on matching journals, switch/core postings, and physical cash movement.
+
+sql
+SELECT
+    r.txn_ref,
+    a.atm_code,
+    r.ej_matched,
+    r.core_matched,
+    r.cash_matched,
+    r.recon_status,
+    r.recon_time
+FROM atm_reconciliation r
+JOIN atm_machines a ON r.atm_id = a.atm_id
+ORDER BY r.recon_time DESC;
+Account statement query
+sql
+SELECT
+    c.full_name,
+    acc.account_no,
+    t.txn_ref,
+    t.txn_type,
+    t.channel,
+    t.amount,
+    t.balance_after,
+    t.status,
+    t.txn_time
+FROM transactions t
+JOIN accounts acc ON t.account_id = acc.account_id
+JOIN customers c ON acc.customer_id = c.customer_id
+WHERE acc.account_no = 1000000001
+ORDER BY t.txn_time DESC;

@@ -1,0 +1,180 @@
+Relationships between tables
+The main table relationships are straightforward. One customer can own multiple accounts, one branch can manage many accounts, and one branch can also have multiple ATM machines attached to it.
+
+One account can have many transactions, one account can have one or more cards over time, and one transaction can create one or more ledger entries. ATM transactions can also be linked to a specific ATM machine so the operation can later be tracked and reconciled.
+
+How operations work
+Create account
+Create account starts by collecting customer data such as name, father name, date of birth, gender, phone, email, address, and opening deposit. The system then creates a customer record first and an account record after that so customer identity and banking data stay separate.
+
+The opening deposit is validated because the system requires a minimum balance rule. The age check exists because account opening rules often require an adult customer in this simplified model, and date parsing is validated to avoid storing invalid DOB values.
+
+Modify account
+Modify account should allow updates to editable fields such as address, email, phone, or other profile data. This operation exists because customer data changes over time, and a banking system must support maintenance without deleting and recreating the account.
+
+Validation is important here so unique fields such as phone, email, PAN, or Aadhaar do not accidentally duplicate another customer’s identity. Update operations should also write updated_at timestamps and may create audit log entries for traceability.
+
+Add checkbook
+Add checkbook issues a cheque range to an account and records the issue in a dedicated checkbooks table. This exists because a physical checkbook has its own lifecycle and should not be stored as a text flag in the account table.
+
+Validation ensures the account exists and is active before the issue happens. It should also ensure that cheque number ranges are unique and generated in a controlled way.
+
+Add ATM card
+Add ATM card generates and links a card number to an account through the atm_cards table. This separation exists because a customer may receive, block, replace, or renew cards independently of the main account record.
+
+Validation checks that the account exists, is active, and does not already violate business rules for card issuance. Card numbers must be unique, and card status should be tracked so blocked or expired cards cannot be used.
+
+Add PAN card
+Add PAN card links tax identity information to the customer in the account_documents table. This exists because PAN is a KYC document and belongs to customer identity management rather than account balance operations.
+
+Validation is important because PAN format should be checked, PAN should remain unique where required, and duplicate KYC records should be prevented.
+
+ATM service operations
+Generate PIN
+Generate PIN is used when a newly issued card gets its first PIN. This exists because a card can be issued before the customer sets a usable PIN.
+
+Validation checks the card number, validates PIN length, and should store the PIN as a hash instead of plain text. This improves security because secret values should never be stored directly.
+
+Change PIN
+Change PIN requires the customer to authenticate using the old PIN before setting the new one. This exists to ensure that only an already authenticated cardholder can replace the current PIN.
+
+Validation checks card existence, old PIN correctness, new PIN length, and optional rules such as preventing reuse of the same PIN. Logging the event is useful for security review.
+
+Forgot PIN through phone
+Forgot PIN through phone uses OTP verification. This exists because a user may forget the PIN but still prove ownership through the registered phone number.
+
+Validation checks that the phone number matches the customer, the OTP is valid and not expired, and the reset is marked as used so it cannot be replayed. OTP-based reset should also be logged in reset history.
+
+Check balance
+Check balance reads the current account balance after successful authentication. It exists as a lightweight inquiry operation and is often available through ATM and net banking channels.
+
+Validation checks authentication first, because balance is sensitive account information. In a more complete design, balance inquiry can also be recorded in the transaction log for channel analytics and traceability.
+
+Mini statement
+Mini statement shows the most recent few transactions for one account, usually ordered by latest time first. It exists so the customer can quickly review recent activity without requesting a full statement.
+
+This feature depends on transaction history being stored correctly. If only the balance is updated and no transaction records exist, a real mini statement cannot be produced.
+
+Withdrawal
+Withdrawal reduces the balance and records a debit transaction. In ATM mode, it should also validate the card, PIN, and machine state before cash is considered successfully dispensed.
+
+Validation checks account existence, sufficient balance, card status, and PIN correctness. In a more advanced ATM model, the ATM machine must also have enough notes of suitable denominations, because the physical machine cannot dispense money it does not contain.
+
+Deposit
+Deposit increases the account balance and records a credit transaction. This exists as the opposite of withdrawal and should also be logged with channel information such as branch or ATM.
+
+Validation checks account existence and a positive amount. Recording the new balance after the operation makes statements easier to read and supports audit trails.
+
+Fund transfer
+Fund transfer moves money from one account to another and should create both a debit side and a credit side entry. This exists because a transfer always affects at least two accounts and must remain traceable.
+
+Validation checks source and destination accounts, rejects transfer to the same account, verifies sufficient source balance, and authenticates the source user. Using transaction and ledger tables is better than only running two updates, because the history remains visible and reviewable.
+
+Net banking operations
+Registration
+Net banking registration links an account to a username and password in a dedicated net_banking_users table. This exists because online login credentials should be managed separately from account master data.
+
+Validation should ensure the account exists, the username is unique, the password is hashed, and the account is eligible for online banking activation.
+
+Login
+Net banking login checks the username and password against stored credentials. This exists so only approved online users can access internet banking features.
+
+Validation includes checking password correctness, account status, and whether the user is active or locked. Failed login handling can also be expanded with retry limits.
+
+Transfer and history
+Net banking transfer works on the same core account data as other channels, but it should still record the channel as NET_BANKING. This helps later reporting and explains where a transaction originated.
+
+Transaction history in net banking is usually a larger view of the same stored transaction data used by the mini statement feature. That reuse is one reason a transaction table is central to the whole design.
+
+Admin operations
+Account administration
+Admin users can view accounts, review balances, and close or block accounts when business rules require it. This exists because not all account actions should be available to customers directly.
+
+Validation ensures that close-account actions are intentional and auditable. Many systems prefer account status changes such as CLOSED or BLOCKED instead of direct deletion so historical references remain valid.
+
+Branch management
+Branch management stores and updates branch details such as branch code, IFSC, address, and manager information. This exists because branches are part of the system structure, and accounts and ATM machines may depend on them.
+
+Validation checks unique branch codes and IFSC values. It also ensures dependent records keep valid foreign key relationships.
+
+ATM cash tracking
+ATM cash tracking monitors the amount of money available in each machine by denomination. This exists because machine cash is finite and must be refilled before the ATM becomes unavailable to customers.
+
+The atm_cash_bins table makes this possible by storing note counts for each denomination, while atm_cash_load_logs records replenishment activity. Together they support operations teams and reporting.
+
+ATM reconciliation
+ATM reconciliation checks whether ATM journal records, core banking transactions, and physical cash movement all agree. This exists because ATM operations can fail or only partially complete, and banks need a process to find mismatches.
+
+A mismatch may happen when an ATM logs a transaction but the core posting fails, when reversal handling is incomplete, or when machine cash records do not align with posted withdrawals. Reconciliation tables help isolate such cases for review.
+
+Validation rules and why they exist
+The table below explains the most important validations and the reason for each one.
+
+Validation	Where used	Why it exists
+Required field validation	Account creation, profile update	Prevents empty essential data such as name, phone, or address.
+Date format validation	DOB entry	Prevents invalid dates and supports correct age calculation.
+Age validation	Account creation	Ensures only eligible users are allowed in this simplified adult-account model.
+Minimum balance validation	Account opening	Enforces business rules for account activation.
+Unique phone/email/account/card checks	Customer, account, ATM card flows	Prevents duplicate identities and conflicts.
+Positive amount validation	Deposit, withdrawal, transfer	Stops zero or negative transaction values.
+Sufficient balance validation	Withdrawal, transfer	Prevents the balance from going below allowed limits.
+PIN length and digit validation	ATM PIN setup and usage	Enforces valid PIN format and avoids malformed input.
+Old PIN validation	Change PIN	Ensures only the legitimate user changes the PIN.
+OTP validation and expiry	Forgot PIN, forgot password	Prevents reuse or misuse of verification codes.
+Same-account transfer prevention	Fund transfer	Stops invalid transfers from source to itself.
+Account/card status validation	Most money operations	Prevents use of closed, blocked, expired, or inactive records.
+Foreign key validation	All linked tables	Preserves consistent relationships between customer, account, branch, ATM, and transaction data.
+What happens internally during a transaction
+A good transaction flow is more than a balance update. The system should first validate the request, then create a transaction reference, then update balances, and finally store ledger or audit records that explain exactly what happened.
+
+For example, during transfer, the system should validate both accounts and the source authorization first, then store debit and credit transaction entries, then update balances in a controlled way. This structure is easier to audit and easier to debug later than direct balance modification only.
+
+Why transaction and ledger tables matter
+A balance field only shows the current result, but it does not explain how that result was reached. A transaction table records events over time, and a ledger-style design improves traceability, reconciliation, and financial consistency.
+
+This becomes especially important when the same account is accessed by branch, ATM, and net banking. Multi-channel systems need an event history so recent transactions, reversals, and mismatches can be understood later.
+
+Common bugs in the old single-table version
+The old structure had several design problems that become visible when the project grows.
+
+A single table mixed customer identity, account data, ATM data, and address information together, which made the schema hard to extend.
+
+Only the balance was updated during operations, so there was no true mini statement or reliable transaction history.
+
+ATM support was weak because PIN reset, card lifecycle, and machine-level tracking were not modeled separately.
+
+Admin-level concepts such as branches, ATM cash load, and reconciliation were missing.
+
+Net banking required separate credentials and OTP or password flows, which do not fit well into one customer account row.
+
+Suggested code structure
+A modular code design is easier to understand than one long file. Separate classes such as DatabaseManager, AccountManagement, ATMServices, AdminPanel, and NetBanking make the system easier to maintain and easier to extend when new features are added.
+
+This structure also mirrors the menu design, so developers and users can both understand where each responsibility belongs. That improves readability, testing, and future maintenance.
+
+How users should understand the system
+The simplest way to understand the system is to think of it in layers. The first layer is customer and account setup, the second layer is channel access such as ATM and net banking, and the third layer is admin control for branches, machines, cash, and tracking.
+
+Another helpful way to understand it is through data flow. A user action such as withdraw, deposit, transfer, or reset PIN always starts with validation, then updates the required records, and then stores logs or history so the event can be reviewed later.
+
+Practical learning order
+For best understanding, study the system in this order:
+
+Customer, branch, and account tables.
+
+Account creation and validation rules.
+
+Transaction table and mini statement queries.
+
+ATM card and PIN workflow.
+
+OTP flow for reset actions.
+
+Net banking login and transfer process.
+
+ATM cash bins, load logs, and reconciliation tables.
+
+Audit logging and admin controls.
+
+Final understanding
+The upgraded CLI banking system is not just a menu program. It is a small core-banking style model where multiple channels use shared account data, while validations, transactions, logs, and reconciliation records explain what happened and why it happened.
